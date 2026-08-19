@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF to Spreadsheet Converter</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- SheetJS (xlsx) CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  
+  <style>
+    /* Gradien Animasi: Deep Indigo, Electric Blue, Violet, & Neon Mint Green */
+    body {
+      background: linear-gradient(-45deg, #0b132b, #3a0ca3, #00f5d4, #1e1b4b, #10b981);
+      background-size: 400% 400%;
+      animation: gradient 14s ease infinite;
+    }
+
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Styling Tombol Upload File Frosted Glass dengan sentuhan Mint/Emerald */
+    input[type=file]::file-selector-button {
+      margin-right: 1rem;
+      border: none;
+      background: rgba(16, 185, 129, 0.15);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      color: #a7f3d0;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(52, 211, 153, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    input[type=file]::file-selector-button:hover {
+      background: rgba(16, 185, 129, 0.3);
+      border-color: rgba(110, 231, 183, 0.7);
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100 p-6 flex items-center justify-center font-sans">
+  
+  <!-- Panel Utama Glassmorphism (Ungu-Biru dengan Pantulan Emerald Glow) -->
+  <div class="w-full max-w-lg bg-white/10 backdrop-blur-2xl border border-emerald-400/30 rounded-3xl shadow-[0_8px_32px_0_rgba(16,185,129,0.25)] p-8">
+    <header class="border-b border-indigo-300/20 pb-6 mb-6 text-center">
+      <!-- Icon Badge: Gradien Ungu ke Hijau Terang -->
+      <div class="inline-flex p-3 rounded-2xl bg-gradient-to-br from-indigo-500/30 via-cyan-500/20 to-emerald-400/30 border border-emerald-300/40 text-emerald-300 mb-3 shadow-[0_0_15px_rgba(52,211,153,0.3)]">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <h1 class="text-3xl font-extrabold text-white tracking-tight drop-shadow-md">PDF to Spreadsheet</h1>
+      <p class="text-sm text-emerald-200/90 mt-2 font-medium">Ekstrak tabel PDF ke format Microsoft Excel atau LibreOffice.</p>
+    </header>
+
+    <div class="space-y-5">
+      <!-- Input File -->
+      <div class="bg-indigo-950/40 p-5 rounded-2xl border border-emerald-400/20 shadow-inner backdrop-blur-md">
+        <label class="block text-sm font-semibold text-emerald-100 mb-2">Pilih File PDF:</label>
+        <input type="file" id="pdf-file" accept="application/pdf" class="block w-full text-sm text-emerald-100 cursor-pointer" />
+      </div>
+
+      <!-- Pemilihan Format Output -->
+      <div class="bg-indigo-950/40 p-5 rounded-2xl border border-emerald-400/20 shadow-inner backdrop-blur-md">
+        <label class="block text-sm font-semibold text-emerald-100 mb-3">Pilih Format Output:</label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex items-center gap-3 p-3.5 rounded-xl border border-emerald-400/30 bg-white/5 cursor-pointer hover:bg-emerald-500/20 transition duration-200">
+            <input type="radio" name="output-format" value="xlsx" checked class="text-emerald-400 focus:ring-emerald-400 accent-emerald-400" />
+            <div>
+              <div class="text-sm font-bold text-white">XLSX</div>
+              <div class="text-xs text-emerald-300/80">Microsoft Excel</div>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-3.5 rounded-xl border border-indigo-400/30 bg-white/5 cursor-pointer hover:bg-indigo-500/20 transition duration-200">
+            <input type="radio" name="output-format" value="ods" class="text-indigo-400 focus:ring-indigo-400 accent-indigo-400" />
+            <div>
+              <div class="text-sm font-bold text-white">ODS</div>
+              <div class="text-xs text-indigo-200/80">OpenDocument Calc</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Tombol Konversi: Indigo -> Blue -> Neon Emerald Gradient -->
+      <button onclick="convertPDF()" id="btn-convert" class="w-full bg-gradient-to-r from-indigo-600/80 via-blue-600/80 to-emerald-500/80 hover:from-indigo-500 hover:via-blue-500 hover:to-emerald-400 text-white font-bold py-3.5 px-6 rounded-2xl transition duration-300 border border-emerald-300/50 shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-200" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+        </svg>
+        Mulai Konversi & Unduh
+      </button>
+    </div>
+
+    <!-- Status Log -->
+    <div id="status" class="mt-6 p-4 rounded-2xl text-sm text-center font-bold hidden backdrop-blur-md border shadow-inner"></div>
+  </div>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    function showStatus(text, type = 'info') {
+      const status = document.getElementById('status');
+      status.innerText = text;
+      status.classList.remove('hidden');
+
+      if (type === 'error') {
+        status.className = 'mt-6 p-4 rounded-2xl text-sm text-center font-bold block bg-red-500/20 text-red-200 border border-red-500/30 backdrop-blur-md';
+      } else if (type === 'success') {
+        status.className = 'mt-6 p-4 rounded-2xl text-sm text-center font-bold block bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 backdrop-blur-md shadow-[0_0_15px_rgba(16,185,129,0.2)]';
+      } else {
+        status.className = 'mt-6 p-4 rounded-2xl text-sm text-center font-bold block bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 backdrop-blur-md';
+      }
+    }
+
+    async function convertPDF() {
+      const fileInput = document.getElementById('pdf-file');
+      const files = fileInput.files;
+      const selectedFormat = document.querySelector('input[name="output-format"]:checked').value;
+
+      if (files.length === 0) {
+        showStatus('⚠️ Pilih 1 file PDF terlebih dahulu.', 'error');
+        return;
+      }
+
+      const file = files[0];
+      showStatus(`⏳ Mengekstrak PDF ke format .${selectedFormat.toUpperCase()}...`, 'info');
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const workbook = XLSX.utils.book_new();
+
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          
+          const rowsMap = new Map();
+          const yTolerance = 6;
+
+          textContent.items.forEach(item => {
+            const str = item.str.trim();
+            if (!str) return;
+
+            const x = item.transform[4];
+            const y = item.transform[5];
+
+            let matchedYKey = null;
+            for (let existingY of rowsMap.keys()) {
+              if (Math.abs(existingY - y) <= yTolerance) {
+                matchedYKey = existingY;
+                break;
+              }
+            }
+
+            if (matchedYKey === null) {
+              matchedYKey = y;
+              rowsMap.set(matchedYKey, []);
+            }
+
+            rowsMap.get(matchedYKey).push({ x, text: str });
+          });
+
+          const sortedYKeys = Array.from(rowsMap.keys()).sort((a, b) => b - a);
+          
+          const sheetData = sortedYKeys.map(yKey => {
+            const rowItems = rowsMap.get(yKey);
+            rowItems.sort((a, b) => a.x - b.x);
+            return rowItems.map(item => item.text);
+          });
+
+          const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+          XLSX.utils.book_append_sheet(workbook, worksheet, `Halaman ${pageNum}`);
+        }
+
+        const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+        
+        if (selectedFormat === 'ods') {
+          XLSX.writeFile(workbook, `${fileNameWithoutExt}_converted.ods`, { bookType: 'ods' });
+        } else {
+          XLSX.writeFile(workbook, `${fileNameWithoutExt}_converted.xlsx`, { bookType: 'xlsx' });
+        }
+
+        showStatus(`✨ Berhasil dikonversi! File .${selectedFormat.toUpperCase()} telah diunduh.`, 'success');
+
+      } catch (err) {
+        console.error(err);
+        showStatus('❌ Gagal memproses dokumen. Pastikan file bukan PDF scan tanpa teks.', 'error');
+      }
+    }
+  </script>
+</body>
+</html>
