@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI-Powered PDF to Spreadsheet Converter</title>
+  <title>Exact Layout PDF to Spreadsheet</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS (xlsx) CDN -->
@@ -47,11 +47,11 @@
     <header class="border-b border-indigo-300/20 pb-6 mb-6 text-center">
       <div class="inline-flex p-3 rounded-2xl bg-gradient-to-br from-indigo-500/30 via-cyan-500/20 to-emerald-400/30 border border-emerald-300/40 text-emerald-300 mb-3 shadow-[0_0_15px_rgba(52,211,153,0.3)]">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       </div>
-      <h1 class="text-3xl font-extrabold text-white tracking-tight drop-shadow-md">AI Table Extractor</h1>
-      <p class="text-xs text-emerald-200/90 mt-2 font-medium">Ekstraksi tabel presisi dengan Smart Multi-Model Fallback.</p>
+      <h1 class="text-3xl font-extrabold text-white tracking-tight drop-shadow-md">Exact Layout PDF Converter</h1>
+      <p class="text-xs text-emerald-200/90 mt-2 font-medium">Auto-routing & failover server anti-antre.</p>
     </header>
 
     <div class="space-y-5">
@@ -91,7 +91,7 @@
 
       <!-- Tombol Eksekusi -->
       <button onclick="convertWithAI()" id="btn-convert" class="w-full bg-gradient-to-r from-indigo-600/80 via-blue-600/80 to-emerald-500/80 hover:from-indigo-500 hover:to-emerald-400 text-white font-bold py-3 px-6 rounded-2xl transition duration-300 border border-emerald-300/50 shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2 text-sm">
-        Mulai Ekstraksi AI Presisi
+        Konversi Sesuai Tata Letak Asli
       </button>
     </div>
 
@@ -123,58 +123,69 @@
       });
     }
 
-    // Daftar model alternatif secara berurutan
-    const candidateModels = [
+    const wait = ms => new Promise(res => setTimeout(res, ms));
+
+    // Urutan model dari yang paling low-traffic/stabil
+    const modelCandidates = [
       'gemini-3.5-flash-lite',
       'gemini-3.5-flash',
       'gemini-3.6-flash',
-      'gemini-3.1-flash-lite'
+      'gemini-3.6-flash-lite'
     ];
 
-    async function callGeminiWithFallback(apiKey, base64Data, promptText) {
-      let lastError = null;
+    async function executeWithSmartFallback(apiKey, base64Data, promptText) {
+      let errorDetails = '';
 
-      for (const model of candidateModels) {
-        try {
-          showStatus(`⏳ Menghubungkan ke ${model}...`, 'info');
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: promptText },
-                  {
-                    inline_data: {
-                      mime_type: "application/pdf",
-                      data: base64Data
+      for (let attempt = 0; attempt < 2; attempt++) {
+        for (const model of modelCandidates) {
+          try {
+            showStatus(`⏳ Memproses via ${model}...`, 'info');
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [
+                    { text: promptText },
+                    {
+                      inline_data: {
+                        mime_type: "application/pdf",
+                        data: base64Data
+                      }
                     }
-                  }
-                ]
-              }],
-              generationConfig: {
-                response_mime_type: "application/json"
+                  ]
+                }],
+                generationConfig: {
+                  response_mime_type: "application/json"
+                }
+              })
+            });
+
+            const result = await response.json();
+
+            if (result.error) {
+              const errMsg = result.error.message || '';
+              errorDetails = errMsg;
+              // Jika server sibuk (demand tinggi) atau not found, coba server model berikutnya
+              if (errMsg.includes('high demand') || errMsg.includes('not found') || errMsg.includes('ResourceExhausted')) {
+                console.warn(`Model ${model} antre: ${errMsg}. Mengalihkan...`);
+                continue;
               }
-            })
-          });
+              throw new Error(errMsg);
+            }
 
-          const result = await response.json();
-
-          if (result.error) {
-            // Jika high demand / tidak tersedia, lanjut coba model berikutnya
-            lastError = result.error.message;
-            console.warn(`Model ${model} gagal: ${lastError}. Mencoba alternatif...`);
-            continue;
+            return { result, modelUsed: model };
+          } catch (err) {
+            errorDetails = err.message;
+            console.warn(`Gagal pada ${model}:`, err);
           }
-
-          return { result, modelUsed: model };
-        } catch (err) {
-          lastError = err.message;
-          console.warn(`Koneksi ke ${model} gagal:`, err);
         }
+        // Jeda sejenak sebelum putaran retry kedua
+        await wait(1500);
       }
 
-      throw new Error(`Semua server model sedang sibuk. Silakan coba 10 detik lagi. (${lastError})`);
+      throw new Error(`Server Google sedang sangat padat. Tunggu sekitar 15-30 detik lalu tekan tombol lagi. (${errorDetails})`);
     }
 
     async function convertWithAI() {
@@ -194,56 +205,60 @@
 
       const file = fileInput.files[0];
       btn.disabled = true;
-      showStatus('⏳ Membaca file dan menyiapkan AI...', 'info');
 
       try {
+        showStatus('⏳ Membaca file PDF...', 'info');
         const base64Data = await fileToBase64(file);
 
         const promptText = `
-        Analyze the uploaded PDF document and extract all tabular data.
-        Return a strict JSON object with this format:
+        You are an expert OCR & Document Layout Reconstruction Engine.
+        Task: Transcribe the EXACT layout and structure of all tables and content from the attached PDF into a 2D spreadsheet matrix.
+
+        CRITICAL LAYOUT RULES:
+        1. Maintain exact spatial alignment. If text is visually located in column 4, place it in index 3 of the array, filling empty preceding cells with empty strings ("").
+        2. Do NOT shift columns to the left when cells are empty. Preserve blank cells.
+        3. Multi-line cells in a single row must remain inside that same row (combine with space or newline).
+        4. Preserve all headers, merged header structures, and numeric values exactly as shown.
+
+        Output ONLY a valid JSON object matching this structure:
         {
           "sheets": [
             {
               "name": "Sheet1",
               "rows": [
-                ["Header1", "Header2", "Header3"],
-                ["Row1_Col1", "Row1_Col2", "Row1_Col3"]
+                ["Col 1", "Col 2", "Col 3", "Col 4"],
+                ["Data 1", "", "Data 3", "Data 4"]
               ]
             }
           ]
         }
-        Guidelines:
-        - Accurately preserve multi-column alignment, row groupings, and numbers.
-        - If a cell is empty in the PDF, use an empty string ("").
-        - Output strictly valid JSON without markdown backticks.
         `;
 
-        const { result, modelUsed } = await callGeminiWithFallback(apiKey, base64Data, promptText);
+        const { result, modelUsed } = await executeWithSmartFallback(apiKey, base64Data, promptText);
 
         const rawJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
         const parsedData = JSON.parse(rawJsonText);
 
         if (!parsedData.sheets || parsedData.sheets.length === 0) {
-          throw new Error('Tidak ada data tabel yang terdeteksi di dalam dokumen.');
+          throw new Error('Tidak ada tabel yang berhasil diekstrak.');
         }
 
         const workbook = XLSX.utils.book_new();
 
         parsedData.sheets.forEach((sheetInfo, idx) => {
           const worksheet = XLSX.utils.aoa_to_sheet(sheetInfo.rows || []);
-          const sheetName = sheetInfo.name ? sheetInfo.name.substring(0, 31) : `Tabel_${idx + 1}`;
+          const sheetName = sheetInfo.name ? sheetInfo.name.substring(0, 31) : `Halaman_${idx + 1}`;
           XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
         });
 
         const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
         if (selectedFormat === 'ods') {
-          XLSX.writeFile(workbook, `${fileNameWithoutExt}_converted.ods`, { bookType: 'ods' });
+          XLSX.writeFile(workbook, `${fileNameWithoutExt}_exact_layout.ods`, { bookType: 'ods' });
         } else {
-          XLSX.writeFile(workbook, `${fileNameWithoutExt}_converted.xlsx`, { bookType: 'xlsx' });
+          XLSX.writeFile(workbook, `${fileNameWithoutExt}_exact_layout.xlsx`, { bookType: 'xlsx' });
         }
 
-        showStatus(`✨ Sukses! Tabel berhasil direkonstruksi rapi via ${modelUsed} (.${selectedFormat.toUpperCase()})`, 'success');
+        showStatus(`✨ Sukses! Layout berhasil direkonstruksi rapi via ${modelUsed} (.${selectedFormat.toUpperCase()})`, 'success');
 
       } catch (err) {
         console.error(err);
